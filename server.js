@@ -22,6 +22,9 @@ app.get('/', (req, res)=>{
 app.get('/googleLogin', (req,res)=>{
     res.render('login')
 })
+app.get('/loginTrait', (req,res)=>{
+    console.log(window.mail)
+})
 app.listen(PORT, (req, res)=>{
     console.log('server is listening on Port' + PORT)
 })

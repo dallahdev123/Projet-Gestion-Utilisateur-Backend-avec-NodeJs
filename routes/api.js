@@ -31,9 +31,7 @@ router.get("/", (req, res) => {
   res.send("Response from API");
 });
 
-//-----------------Création de compte----------------------
-router.post("/register", (req, res) => {
-  //---------------Génération de mot de pass automatique----------------
+//---------------Génération de mot de pass automatique----------------
 const randomFunc = {
 	lower: getRandomLower,
 	upper: getRandomUpper,
@@ -46,7 +44,6 @@ const length = 6;
 	const hasNumber = true;
 	const hasSymbol = true;
 
-  var pwd = generatePassword(hasLower, hasUpper, hasNumber, hasSymbol, length);
   function generatePassword(lower, upper, number, symbol, length) {
     let generatedPassword = '';
       const typesCount = lower + upper + number + symbol;
@@ -83,6 +80,11 @@ const length = 6;
     return symbols[Math.floor(Math.random() * symbols.length)];
   }
 //----------------fin-------------------------
+
+//-----------------Création de compte----------------------
+router.post("/register", (req, res) => {
+  var pwd = generatePassword(hasLower, hasUpper, hasNumber, hasSymbol, length);
+
   // Insertion des données dans la base de donnée
   let userData = req.body;
   const saltRounds = 10;
@@ -100,7 +102,7 @@ const length = 6;
       } else {
         if(userData.profil == "Administrateur"){
           let admin = new Admin(userData);
-              admin.save((error, res) => {
+              admin.save((error, registredUser) => {
                 if (error) {
                   console.log("error");
                 } else {
@@ -149,8 +151,8 @@ router.post("/login", (req, res) => {
               if (!bcrypt.compareSync(userData.password, admin.password)) {
                 res.status(401).send("Mot de pass invalide");
               } else {
-                let payload = {subject: user._id}
-                let profil = user.profil;
+                let payload = {subject: admin._id}
+                let profil = admin.profil;
                 let token = jwt.sign(payload, 'mindSet')
                 res.status(200).send({token,profil});
               }
@@ -174,17 +176,41 @@ router.post("/login", (req, res) => {
 //----------Recupération de mot de passe---------------
 router.post("/forgetPwd", (req, res) => {
   let userData = req.body;
+  var pwd = generatePassword(hasLower, hasUpper, hasNumber, hasSymbol, length);
+  
+  const saltRounds = 10;
+  const salt = bcrypt.genSaltSync(saltRounds);
+  const hash = bcrypt.hashSync(pwd, salt);
 
   User.findOne({ email: userData.email }, (error, user) => {
     if (error) {
       console.log(error);
     } else {
       if (!user) {
-        res.status(401).send("Address mail invalide");
+        Admin.findOne({ email: userData.email }, (error, admin) => {
+          if (error) {
+            console.log(error);
+          } else {
+            if (!admin) {
+              res.status(401).send("Adress mail invalide");
+            } else {
+              sendMail(userData.email, pwd);
+              Admin.updateOne({ email: admin.email }, { $set: {password: hash} }, function(err, result) {
+                if (err) throw err;
+                console.log("Votre mot de passe vous a été nvoyé")
+                res.status(200).send(result);
+              });
+            }
+          }
+        });
       } else {
-        sendMail(userData.email, user.password);
-        console.log("Votre mot de passe vous a été nvoyé")
-        res.status(200).send(user);
+        sendMail(userData.email, pwd);
+        User.updateOne({ email: user.email }, { $set: {password: hash} }, function(err, result) {
+          if (err) throw err;
+          console.log("Votre mot de passe vous a été nvoyé")
+          res.status(200).send(result);
+        });
+        
       }
     }
   });
